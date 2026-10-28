@@ -1,0 +1,321 @@
+@import "tailwindcss";
+@theme {
+  --spacing: 4px;
+  --color-brand: #164f43;
+  --color-brand-dark: #103d34;
+  --color-ink: #213b33;
+  --color-page: #f2f5ef;
+  --color-muted: #6a7c70;
+  --color-panel-line: #dce5d9;
+  --font-sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+@layer base {
+  :root {
+    @apply font-sans text-ink bg-page;
+    font-size: 14px;
+    font-synthesis: none;
+  }
+  body {
+    @apply m-0;
+  }
+  button,
+  a,
+  input,
+  select,
+  summary {
+    -webkit-tap-highlight-color: transparent;
+  }
+  button {
+    @apply cursor-pointer;
+  }
+  button:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+  button,
+  input,
+  a,
+  select,
+  summary {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c59d51];
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-brand);
+  }
+  h2 {
+    @apply text-[12px] font-bold tracking-[-0.15px];
+  }
+  th {
+    @apply whitespace-nowrap bg-[#f5f8f1] px-3 py-2.5 text-left text-[9px] font-medium text-muted;
+  }
+  td {
+    @apply border-b border-[#edf1e8] px-3 py-3 text-[10px] text-[#4c6554];
+  }
+  table {
+    @apply w-full border-collapse whitespace-nowrap;
+  }
+  footer a {
+    @apply underline underline-offset-2;
+  }
+}
+@layer components {
+  .dashboard-header {
+    @apply mx-auto flex min-h-[66px] max-w-[1800px] items-center gap-5 bg-[#103e35] px-7 text-white max-[760px]:flex-wrap max-[760px]:gap-3 max-[760px]:px-4 max-[760px]:py-3;
+    background-image: linear-gradient(110deg, #174b40, #0e302b);
+  }
+  .brand-icon {
+    @apply relative grid size-8 place-items-center text-[#bed4aa];
+  }
+  .header-navigation {
+    @apply ml-auto flex items-center gap-1 max-[760px]:order-3 max-[760px]:w-full max-[760px]:justify-center;
+  }
+  .header-navigation a {
+    @apply whitespace-nowrap rounded-full px-4 py-2 text-[10px] font-medium text-[#c1d3cb] hover:bg-white/10;
+  }
+  .header-navigation .nav-active {
+    @apply bg-white/10 text-white;
+  }
+  .dashboard-shell {
+    @apply mx-auto max-w-[1800px] rounded-t-[20px] bg-page px-[18px] pt-3 max-[760px]:px-[10px];
+  }
+  .dashboard-grid {
+    @apply grid grid-cols-[minmax(0,2.45fr)_minmax(320px,1fr)] gap-3 max-[1100px]:grid-cols-1;
+  }
+  .panel {
+    @apply min-w-0 rounded-[10px] border border-panel-line bg-white shadow-[0_2px_5px_#16392b05];
+  }
+  .trip-form-grid {
+    @apply grid items-end gap-3;
+    grid-template-columns:
+      minmax(130px, 1.25fr) 32px minmax(130px, 1.25fr)
+      minmax(175px, 1.2fr) minmax(110px, 0.8fr) minmax(145px, 0.9fr) 145px;
+    grid-template-areas: "origin swap destination departure load sampling analyze";
+  }
+  .trip-form-grid > :nth-child(1) {
+    grid-area: origin;
+  }
+  .trip-form-grid > :nth-child(2) {
+    grid-area: swap;
+  }
+  .trip-form-grid > :nth-child(3) {
+    grid-area: destination;
+  }
+  .trip-form-grid > :nth-child(4) {
+    grid-area: departure;
+  }
+  .trip-form-grid > :nth-child(5) {
+    grid-area: load;
+  }
+  .trip-form-grid > :nth-child(6) {
+    grid-area: sampling;
+  }
+  .trip-form-grid > :nth-child(7) {
+    grid-area: analyze;
+  }
+  @media (max-width: 1250px) {
+    .trip-form-grid {
+      grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr) minmax(0, 1.2fr);
+      grid-template-areas: "origin swap destination departure" "load sampling sampling analyze";
+    }
+  }
+  @media (max-width: 850px) {
+    .trip-form-grid {
+      grid-template-columns: minmax(0, 1fr) 32px minmax(0, 1fr);
+      grid-template-areas: "origin swap destination" "departure departure departure" "load sampling sampling" "analyze analyze analyze";
+    }
+  }
+  @media (max-width: 600px) {
+    .trip-form-grid {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-areas: "origin" "swap" "destination" "departure" "load" "sampling" "analyze";
+    }
+  }
+
+  .field-label {
+    @apply block text-[10px] font-medium text-[#50685b];
+  }
+  .field-input {
+    @apply mt-[6px] h-10 w-full min-w-0 rounded-md border border-[#dce5de] bg-white px-3 text-[11px] font-medium text-ink;
+  }
+  input.field-input {
+    @apply py-2;
+  }
+  .field-input:focus-within {
+    @apply border-[#7fa58e] ring-2 ring-[#d8e8da]/60;
+  }
+  .swap-button {
+    @apply mb-1 grid size-8 place-items-center justify-self-center rounded-md border border-[#e0e7df] text-[#597164] hover:bg-[#edf4e9] max-[600px]:mb-0;
+  }
+
+  .sampling-options {
+    @apply flex h-10 items-center gap-0.5 rounded-md border border-[#e0e7dd] bg-[#f4f6f0] p-1;
+  }
+  .sampling-options button {
+    @apply h-full flex-1 whitespace-nowrap rounded px-1 text-[10px] text-muted;
+  }
+  .sampling-options button.active {
+    @apply bg-brand font-semibold text-white shadow-sm;
+  }
+  .primary {
+    @apply flex items-center justify-center gap-2 whitespace-nowrap rounded-md border border-brand bg-brand px-4 text-[11px] font-semibold text-white transition-colors hover:bg-brand-dark max-[600px]:mt-1 max-[600px]:w-full;
+  }
+  .suggestions {
+    @apply absolute top-full left-0 z-[1100] mt-1 max-h-[250px] min-w-full overflow-y-auto rounded-md border border-[#dae4d8] bg-white shadow-[0_8px_24px_#173c3024];
+  }
+  .suggestion-option {
+    @apply w-full border-b border-[#edf1e9] px-3 py-2.5 text-left text-[11px] text-ink hover:bg-[#edf4ef];
+  }
+  .error-banner {
+    @apply rounded-md border border-[#edcfc9] bg-[#fff2ef] px-3 py-2.5 text-[11px] leading-relaxed text-[#9b413b];
+  }
+  .warning-banner {
+    @apply rounded-md border border-[#eadcbb] bg-[#fff9e9] px-3 py-2 text-[10px] leading-relaxed text-[#806329];
+  }
+  .map-panel {
+    @apply h-[510px] min-[1600px]:h-[570px] max-[1000px]:h-[510px] max-[760px]:h-[440px];
+  }
+  .map-panel .leaflet-container {
+    @apply z-[1] rounded-[9px];
+    font-family: inherit;
+  }
+  .map-panel .leaflet-tile-pane {
+    filter: saturate(0.62) contrast(0.95);
+  }
+  .map-mode-control {
+    @apply absolute top-3 left-3 z-[500] flex overflow-hidden rounded-md border border-[#d4dfd1] bg-white/95 shadow-sm;
+  }
+  .map-mode-control button {
+    @apply flex items-center gap-1.5 px-3 py-2.5 text-[10px] font-medium text-[#607467];
+  }
+  .map-mode-control button.active {
+    @apply bg-brand text-white;
+  }
+  .map-layer-control {
+    @apply absolute top-3 right-3 z-[500] flex flex-col gap-2 rounded-md border border-[#dce5d8] bg-white/95 p-3 text-[9px] text-[#4b6252] shadow-sm max-[480px]:gap-1.5 max-[480px]:p-2 max-[480px]:text-[8px];
+  }
+  .map-layer-control input {
+    @apply size-3;
+  }
+  .map-empty {
+    @apply absolute top-[54%] left-1/2 z-[400] w-[280px] max-w-[85%] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-white/80 bg-white/90 px-4 py-4 text-center shadow-[0_8px_32px_#163c2518] backdrop-blur-[2px];
+  }
+  .risk-legend {
+    @apply absolute bottom-[30px] left-3 z-[500] flex max-w-[calc(100%-70px)] flex-wrap gap-x-3 gap-y-1.5 rounded-md border border-[#e0e7db] bg-white/95 px-3 py-2 text-[8px] font-medium text-[#526751] shadow-sm;
+  }
+  .map-data-note {
+    @apply absolute bottom-1 left-3 z-[500] rounded bg-white/85 px-1.5 py-0.5 text-[8px] text-[#5d735e] max-[480px]:max-w-[70%];
+  }
+  .map-navigation {
+    @apply mb-9! mr-3! overflow-hidden rounded-md border border-[#d2ddd0] bg-white shadow-sm;
+  }
+  .map-navigation button {
+    @apply grid size-8 place-items-center border-b border-[#e3eae0] text-[#4e6654] last:border-0 hover:bg-[#f0f5eb];
+  }
+  .endpoint-pin {
+    @apply block size-[22px] rotate-[-45deg] rounded-[50%_50%_50%_0] border-[3px] border-white shadow-md;
+  }
+  .endpoint-pin:after {
+    content: "";
+    @apply absolute top-[5px] left-[5px] size-[6px] rounded-full bg-white;
+  }
+  .origin-pin {
+    @apply bg-[#24865e];
+  }
+  .destination-pin {
+    @apply bg-[#d2524b];
+  }
+  .route-options-list {
+    @apply flex max-h-[455px] flex-col gap-2 overflow-y-auto min-[1600px]:max-h-[515px] max-[760px]:max-h-none;
+  }
+  .route-card {
+    @apply w-full rounded-md border border-[#e1e7de] bg-[#fcfdfa] p-3 text-left transition-colors hover:border-[#92b499];
+  }
+  .route-selected {
+    @apply border-[#b8dfc0] bg-[#f1f8ef] ring-1 ring-[#d8eed8]/50;
+  }
+  .route-number {
+    @apply grid size-[23px] shrink-0 place-items-center rounded-full text-[10px] font-semibold text-white;
+  }
+  .recommendation-tag {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded bg-[#e2f1e1] px-1.5 py-1 text-[8px] font-semibold text-[#267349];
+  }
+  .metric-value {
+    @apply block whitespace-nowrap text-[11px] font-semibold text-[#294331];
+  }
+  .metric-label {
+    @apply mt-0.5 block whitespace-nowrap text-[9px] text-muted;
+  }
+  .risk-metric {
+    @apply inline-block whitespace-nowrap rounded bg-white/60 text-[10px] font-semibold;
+  }
+  .mode-tabs {
+    @apply flex rounded-md border border-[#e2e8de] bg-[#f4f7f0] p-0.5;
+  }
+  .mode-tabs button {
+    @apply rounded px-2.5 py-1.5 text-[9px] text-muted;
+  }
+  .mode-tabs button.active {
+    @apply bg-brand text-white;
+  }
+  .play-button {
+    @apply grid size-7 shrink-0 place-items-center rounded-full bg-brand text-white;
+  }
+  .forecast-slider {
+    @apply block h-[5px] w-full cursor-pointer rounded-full bg-[#e3e9e0] accent-brand;
+  }
+  .forecast-chart {
+    @apply mt-2;
+  }
+  .forecast-chart svg {
+    @apply h-[125px] w-full;
+  }
+  .forecast-chart text {
+    fill: #6a7c70;
+    font-size: 8px;
+  }
+  .chart-empty {
+    @apply mt-3 flex h-[125px] flex-col items-center justify-center rounded-md border border-dashed border-[#e1e8dc] bg-[#f8faf5] px-3 text-center text-[11px] text-[#758975];
+  }
+  .chart-empty p {
+    @apply mt-1 text-[10px] text-muted;
+  }
+  .checkpoint-list {
+    @apply max-h-[285px] overflow-y-auto;
+  }
+  .checkpoint-item {
+    @apply relative border-b border-[#edf1e8] px-1 last:border-0;
+  }
+  .checkpoint-active {
+    @apply rounded-md bg-[#f2f7ee];
+  }
+  .checkpoint-dot {
+    @apply relative z-[1] mr-1 size-[9px] shrink-0 rounded-full;
+  }
+  .checkpoint-item:not(:last-child):before {
+    content: "";
+    @apply absolute top-[24px] bottom-[-15px] left-[8px] w-px bg-[#b6cdb1];
+  }
+  .weather-popup {
+    @apply text-[11px] leading-relaxed;
+  }
+  .weather-popup p {
+    @apply my-1.5;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      transition: none !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  @media (min-width: 900px) and (max-width: 1100px) {
+    .route-options-list {
+      @apply grid max-h-none grid-cols-3;
+    }
+  }
+  .forecast-chart text {
+    font-size: 10px;
+  }
+}
