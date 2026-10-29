@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { analyzeRoutes } from "../lib/api";
-import type { Analysis, Location } from "../types";
+import { sameTrip } from "../lib/assessment";
+import type { Analysis, AnalysisRequest, Location } from "../types";
 
 export type TripDraft = {
   origin: Location | null;
@@ -24,6 +25,8 @@ export function useTripAnalysis() {
     load: "30000",
     interval: 25,
   });
+  const [analyzedRequest, setAnalyzedRequest] =
+    useState<AnalysisRequest | null>(null);
   const [result, setResult] = useState<Analysis | null>(null);
   const [selected, setSelected] = useState("");
   const [checkpoint, setCheckpoint] = useState(0);
@@ -68,6 +71,13 @@ export function useTripAnalysis() {
       setError("Origin and destination must differ.");
       return;
     }
+    const payload: AnalysisRequest = {
+      origin,
+      destination,
+      departure_time: date.toISOString(),
+      load_weight_lb: weight,
+      interval_miles: interval,
+    };
     locked.current = true;
     setBusy(true);
     setResult(null);
@@ -75,16 +85,8 @@ export function useTripAnalysis() {
     controller.current?.abort();
     controller.current = new AbortController();
     try {
-      const data = await analyzeRoutes(
-        {
-          origin,
-          destination,
-          departure_time: date.toISOString(),
-          load_weight_lb: weight,
-          interval_miles: interval,
-        },
-        controller.current.signal,
-      );
+      const data = await analyzeRoutes(payload, controller.current.signal);
+      setAnalyzedRequest(data.trip || payload);
       setResult(data);
       setSelected(data.recommended_route_id || data.routes[0]?.id || "");
       setTripLabel(
@@ -97,7 +99,22 @@ export function useTripAnalysis() {
       setBusy(false);
     }
   }
+  const currentDeparture = new Date(draft.departure);
+  const currentRequest: AnalysisRequest | null =
+    draft.origin &&
+    draft.destination &&
+    Number.isFinite(currentDeparture.getTime())
+      ? {
+          origin: draft.origin,
+          destination: draft.destination,
+          departure_time: currentDeparture.toISOString(),
+          load_weight_lb: Number(draft.load),
+          interval_miles: draft.interval,
+        }
+      : null;
   return {
+    resultsOutOfDate:
+      Boolean(result) && !sameTrip(currentRequest, analyzedRequest),
     draft,
     updateDraft,
     result,

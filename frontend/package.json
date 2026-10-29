@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "preview": "vite preview --host 0.0.0.0",
-    "format:check": "prettier --check src vite.config.ts eslint.config.js tsconfig.json package.json"
+    "format:check": "prettier --check src vite.config.ts eslint.config.js tsconfig.json package.json",
+    "test": "node --experimental-strip-types --test tests/*.test.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4",

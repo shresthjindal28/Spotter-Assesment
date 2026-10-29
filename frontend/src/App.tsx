@@ -35,6 +35,7 @@ export default function App() {
             result={trip.result}
             busy={trip.busy}
             tripLabel={trip.tripLabel}
+            outdated={trip.resultsOutOfDate}
           />
         </div>
         <div className="dashboard-grid">

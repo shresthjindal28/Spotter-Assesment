@@ -1,7 +1,7 @@
-from django.test import TestCase
+from django.test import SimpleTestCase
 
 
-class HealthCheckTests(TestCase):
+class HealthCheckTests(SimpleTestCase):
     def test_health_endpoints(self):
         for url in ("/health/", "/api/health/"):
             with self.subTest(url=url):

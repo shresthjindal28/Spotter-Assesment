@@ -1,160 +1,85 @@
-# Wayweather — Weather-aware truck routing
+# Wayweather — Weather-Aware Route Assessment
 
-A React and Django assessment application that compares genuine GraphHopper route alternatives, samples weather along road geometry, and ranks routes by weather exposure. The normal workflow always calls the backend and real providers. There is no fake results mode.
+React/TypeScript/Vite/Tailwind dashboard with a stateless Django REST API. GraphHopper generates genuine road-route alternatives; Open-Meteo supplies checkpoint forecasts; the backend applies weather/load rules and ranks routes. No database, migrations, login, Redis, or worker service is required.
 
-## Architecture
+## Run locally
 
-```text
-weather-truck-routing/
-  backend/
-    config/                   Django settings and HTTP entry points
-    routing/
-      serializers.py          Validated input and typed route responses
-      views.py                Thin DRF endpoints
-      services/               Providers, checkpoints, risk, analysis, ranking
-      test_suite/             Business and mocked provider integration tests
-    pyproject.toml, uv.lock
-    Dockerfile
-  frontend/
-    src/components/           Location search, map, route cards
-    src/lib/                  API client and formatting
-    src/types/                Shared frontend contracts
-    package.json, pnpm-lock.yaml
-    Dockerfile
-  deploy/nginx.conf
-  compose.yaml
-```
-
-Python 3.12+, Django/DRF, httpx, dotenv, in-process caching, Gunicorn and WhiteNoise; React, TypeScript, Vite, Tailwind CSS and React Leaflet. Native accessible form controls serve this focused dashboard without another component framework. SQLite is used only for Django's built-in admin/session tables; trip analysis has no database dependency. No Redis, Celery or PostgreSQL is needed.
-
-## Local setup on macOS
-
-Install Python 3.12+, uv, Node 22.12+ and pnpm 11. The frontend was validated on Node 22.14 and pnpm 11.18. Backend versions are locked by uv; frontend versions by pnpm.
+Prerequisites: Python 3.12+, uv, Node 22.12+, pnpm 11.
 
 ```sh
-brew install uv node pnpm
 cd backend
 uv sync --frozen
 cp .env.example .env
-```
-
-Edit `backend/.env`: set `GRAPHHOPPER_API_KEY` to your GraphHopper Directions API key. The `truck` profile must be enabled for your account/plan. Keep this key on the backend. For evaluating geometry on an account without truck access, explicitly set `GRAPHHOPPER_PROFILE=car`; such routes do not enforce truck road restrictions. The UI's weather/load rules still apply, but this fallback must not be used as truck navigation. Truck dimensions, total vehicle weight, hazardous cargo restrictions, closures, traffic and driver rest periods are outside this assessment.
-
-```sh
-uv run python manage.py migrate
-uv run python manage.py collectstatic --noinput
 uv run python manage.py runserver
 ```
 
-In another terminal, from the project root:
+Copy the example only for first-time setup. Preserve an existing `.env`. Set your real routing key there; never put it in frontend variables or commit it.
+
+In another terminal:
 
 ```sh
 cd frontend
 pnpm install --frozen-lockfile
-cp .env.example .env
 pnpm dev
 ```
 
-Open http://localhost:5173. Vite proxies `/api` to Django at http://127.0.0.1:8000. Search each endpoint, choose a specific suggestion, enter departure and load, select sampling distance, and analyze. Ambiguous locations remain user choices; no first-result guessing occurs. Without a routing key, place search and analysis return an actionable 503 error. You can still open the dashboard and check `/api/health/` or `/health/`.
+Open http://localhost:5173. Vite proxies `/api` to Django at http://127.0.0.1:8000.
 
-## Environment
+## Configuration
 
-| Variable | Meaning |
+For the current GraphHopper account's supported car profile:
+
+```dotenv
+GRAPHHOPPER_API_KEY=your-own-key
+GRAPHHOPPER_PROFILE=car
+OPEN_METEO_API_KEY=
+```
+
+`car` provides geometry for a weather assessment, **not verified truck-safe roads**. The warning stays visible, and eligibility is explicitly weather eligibility. `truck` or `small_truck` requires provider-account access. The backend returns an actionable error instead of silently downgrading. Three distinct alternatives are requested; fewer are returned with a warning when the provider cannot supply three.
+
+Open-Meteo's public evaluation API needs no key. Its optional key selects the commercial endpoint. Set `VITE_API_BASE_URL` only when hosting the frontend separately; it is a public backend origin, never a secret. Restart Django after changing `.env`.
+
+Other backend settings are in `.env.example`: debug mode, secret key, allowed hosts, explicit CORS/CSRF origins and trusted proxy handling. Legacy `SQLITE_PATH` values are ignored. Your actual `.env` is not changed by the implementation.
+
+## Load Risk Test demonstration
+
+The dashboard's **Load Risk Test** panel uses simulated manual inputs and the same backend function used at live checkpoints. It works without routing/weather credentials or external API calls. Enter wind in mph and load in lb, or select any of the nine predefined assessment cases. Results show general wind risk, the load-specific restriction, rule identifier and explanation. Test values never change trip weather or route recommendations.
+
+Exact load rules:
+
+- Wind ≥55 mph: No Travel for every load.
+- Wind 45–54 mph inclusive and load >30,000 lb: No Travel.
+- Wind 35–44 mph inclusive and load >40,000 lb: Severe.
+- Otherwise no additional load restriction; general weather hazards still apply.
+
+Exactly 30,000 and 40,000 lb do not satisfy their respective strict inequalities. Fractional speeds above 44 or 54 fall outside those specific inclusive override ranges; general wind risk still applies. For example, 35 mph / 40,000 lb has no additional load restriction but remains High general wind risk.
+
+General wind bands are <25 / <35 / <45 / <55 / ≥55 mph. Rain bands are <0.10 / ≤0.25 / ≤0.50 / ≤1.00 / >1.00 in/hr. Snow bands are <0.5 / ≤1 / ≤2 / ≤3 / >3 in/hr. The most severe hazard wins, with Low=0 through No Travel=4. Missing measurements remain unknown.
+
+## Live assessment and recommendation
+
+Checkpoints follow cumulative road-polyline distance at 10/25/50-mile intervals, including both endpoints. ETA interpolates provider driving duration by distance; it excludes traffic updates and rest stops. Forecasts use the hour ending at or after each ETA. Rain plus showers converts mm to inches; snowfall converts cm to inches. Requests batch and deduplicate locations and cache for up to 15 minutes.
+
+A segment's miles take the worse endpoint risk. Unknown endpoints make the segment unavailable, except a known No Travel restriction takes precedence. This is a sampling approximation. Routes with No Travel or incomplete weather cannot be recommended. Eligible alternatives are ordered lexicographically by **Severe miles → High miles → mileage-weighted average risk → driving duration**, with a stable ID tie-breaker.
+
+The 0–48-hour slider shows a common forecast time across sampled points; arrival mode uses each checkpoint's ETA. The chart uses real forecasts at the selected checkpoint, with gaps for missing data. It is sampled corridor weather, not radar. Slider changes never alter ETA-based recommendations. Arrival dates are shown in UTC. Changed inputs and old analyses produce reanalysis notices.
+
+## API and architecture
+
+| Endpoint | Purpose |
 |---|---|
-| `DJANGO_DEBUG` | `true` locally; `false` in production |
-| `DJANGO_SECRET_KEY` | Production requires a random secret of at least 50 characters |
-| `DJANGO_ALLOWED_HOSTS` | Comma-separated backend hostnames, without schemes |
-| `CORS_ALLOWED_ORIGINS` | Explicit frontend origins; no wildcard production CORS |
-| `CSRF_TRUSTED_ORIGINS` | Explicit trusted frontend origins |
-| `GRAPHHOPPER_API_KEY` | Required routing and place-search credential |
-| `GRAPHHOPPER_PROFILE` | `truck`, or a profile enabled on your account |
-| `OPEN_METEO_API_KEY` | Optional; switches to the commercial customer endpoint |
-| `SQLITE_PATH` | Optional SQLite file path; Compose uses `/app/data/db.sqlite3` on a volume |
-| `TRUST_PROXY` | Set true only behind a proxy that strips/replaces inbound forwarded headers |
-| `VITE_API_BASE_URL` | Empty for same-origin `/api`; otherwise the HTTPS backend origin, without `/api` |
+| `GET /api/health/` or `/health/` | Liveness |
+| `GET /api/geocode/?q=...` | Explicit location candidates |
+| `POST /api/routes/analyze/` | Genuine alternatives, checkpoint weather, rule explanations and ranking |
+| `GET /api/weather/forecast/` | Independent point/time forecast |
+| `GET /api/risk/load-test/` | Nine simulated test scenarios |
+| `POST /api/risk/load-test/` | Assess `{ "wind_mph":45, "load_weight_lb":30001, "wind_unit":"mph", "load_unit":"lb" }` |
 
-Frontend environment values are public and compiled into the build. Never place provider secrets there. Env files, local SQLite databases, virtual environments, dependency folders and build output are ignored. The application exposes public analysis endpoints; DRF throttles anonymous clients to 30 requests/minute per IP. Health is exempt. Configure a trusted edge rate limiter and access control for a public deployment. Cache and throttles are local to each worker, not distributed guarantees.
+Analysis input contains `origin`/`destination` objects with `label`, `lat`, `lon`; timezone-aware `departure_time`; `load_weight_lb`; and `interval_miles`. Responses include the analyzed trip, assessment time, routing-profile limitation, route geometry/distance/duration/arrival, risk miles, checkpoint load-rule details, recommendation and warnings. Missing forecasts are null, not zero. Invalid input is 400; provider failures are 502/503; throttling is 429.
 
-## API
+Backend services are under `backend/routing/services/`; DRF serializers and thin views handle HTTP. Reusable frontend components are under `frontend/src/components/`, state hooks under `src/hooks/`, and API/types/helpers under `src/lib/` and `src/types/`.
 
-Every timestamp is normalized to UTC. Input departure and independent forecast timestamps must include an explicit offset or `Z`. The browser date picker is in the timezone named next to the field, then converts to UTC for transport. Results, ETAs and forecast-valid times are labeled UTC. Forecast timestamps are validity times, not model issue times.
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| GET | `/api/health/` or `/health/` | Process liveness; returns `status`, `service`, `message` |
-| GET | `/api/geocode/?q=Philadelphia` | Up to five GraphHopper place candidates: `label`, `lat`, `lon` |
-| POST | `/api/routes/analyze/` | Route geometries, checkpoint forecasts, 49-hour corridor timelines, exposure and ranking |
-| GET | `/api/weather/forecast/?lat=40&lon=-75&time=2026-10-28T12:00:00Z&load_weight_lb=30000` | Independent point forecast with normalized weather and hazards |
-
-Example analysis request (replace departure with a future time within 15 days):
-
-```sh
-curl -X POST http://127.0.0.1:8000/api/routes/analyze/ \
-  -H 'Content-Type: application/json' \
-  -d '{"origin":{"label":"Philadelphia","lat":39.9526,"lon":-75.1652},"destination":{"label":"New York","lat":40.7128,"lon":-74.0060},"departure_time":"2026-10-28T12:00:00Z","load_weight_lb":30000,"interval_miles":25}'
-```
-
-Response contract:
-
-```text
-{
-  routes: [{
-    id, summary, geometry: [[longitude, latitude], ...],
-    distance_miles, duration_seconds, arrival_time,
-    status: "viable" | "unsafe" | "insufficient-data",
-    rank, recommended, average_risk: number | null,
-    risk_miles: {Low, Moderate, High, Severe, "No Travel", Unavailable},
-    checkpoints: [{
-      lat, lon, distance_miles, arrival_time, forecast_time,
-      wind_mph, rain_in_hr, snow_in_hr,
-      hazards: {wind, rain, snow}, risk, complete, availability,
-      timeline: [49 forecast records for departure + 0..48 hours]
-    }]
-  }],
-  recommended_route_id: string | null,
-  warnings: [string, ...], forecast_base_time, timezone: "UTC"
-}
-```
-
-A health response is `{"status":"ok","service":"weather-truck-routing-api","message":"Backend is running successfully"}`. A missing-key response is `{"error":{"code":"provider_error","message":"Configure GRAPHHOPPER_API_KEY on the backend to enable routing and place search."}}` with status 503. Validation failures use 400 with `error.details`; provider failures use 502, rate limits/timeouts 503, excessive sampling 422 and application throttles 429. Availability distinguishes `available`, `incomplete`, `outside_forecast_horizon` and `provider_unavailable`. Weather failures are partial analysis responses with null measurements and no eligible recommendation where coverage is incomplete. Unsupported routing profiles or unsnappable destinations produce a provider error. Requests never accept arbitrary fetch URLs. `/docs` is not a Swagger endpoint; this README is the API reference.
-
-## Checkpoints and forecast alignment
-
-Checkpoint positions follow cumulative haversine distance over the actual route polyline, scaled to the routing provider's reported distance. Checkpoints start at mile zero, occur at the requested 10/25/50-mile interval and include the exact final partial segment. ETA uses route driving duration interpolated by cumulative distance. This is a documented constant-average-speed approximation, not a traffic-aware segment time profile. Route arrival uses the selected departure plus provider duration.
-
-Open-Meteo requests are batched in groups of 40 locations, deduplicated to four decimal places (roughly 11 m), and cached for 15 minutes. Place searches cache for a day. At most 600 checkpoint entries per analysis are supported. Both ETA forecasts and the complete slider timeline reuse these hourly data; moving the slider does not consume another API request.
-
-Forecast hour selection uses the hour ending at or after the requested time. Rain and snow are hourly accumulation proxies for rates during that preceding hour; wind is the instantaneous forecast at that hour. Rain adds large-scale rain and convective showers, with millimeters converted to inches by dividing by 25.4. Snowfall depth is centimeters converted to inches by dividing by 2.54. Snow is not liquid-water-equivalent precipitation. Raw measurements, individual hazard levels and forecast-valid timestamps remain visible in the response. No current weather is substituted for unavailable hours. Up to 16 calendar days are requested; actual variable/model coverage can be shorter. A departure near the limit can have later checkpoints or slider hours outside coverage.
-
-The corridor heatmap displays real forecast-risk circles at sampled points on the selected route. It is deliberately a sampled corridor visualization rather than interpolated spatial radar. Gray means missing measurements. Arrival mode instead shows each checkpoint at its own ETA. Changing slider time updates the map, popups and checkpoint table, preserves route geometry and selection, and does not change the ETA-based recommendation. Only the selected route's checkpoint markers are drawn; the bounded sample count avoids drawing markers from every overlapping route. All available route geometries remain visible, with solid viable, dashed unsafe and dotted incomplete routes.
-
-## Risk rules
-
-Risk ordering and numeric average scale: Low=0, Moderate=1, High=2, Severe=3, No Travel=4. Missing measurements are unknown, never Low. Any known No Travel hazard remains a prohibition even when another hazard is missing; otherwise an incomplete checkpoint has null overall risk. The most severe available complete hazard controls each checkpoint.
-
-| Hazard | Low | Moderate | High | Severe | No Travel |
-|---|---|---|---|---|---|
-| Wind mph | <25 | 25 to <35 | 35 to <45 | 45 to <55 | ≥55 |
-| Rain in/hr | <0.10 | 0.10–0.25 | >0.25–0.50 | >0.50–1.00 | >1.00 |
-| Snow in/hr | <0.5 | 0.5–1.0 | >1.0–2.0 | >2.0–3.0 | >3.0 |
-
-Wind bands are lower-inclusive, upper-exclusive, resolving fractional speeds such as 34.9 and 54.9 without gaps. Rain and snow use inclusive upper endpoints for the middle bands exactly as the assessment states. At wind ≥55 every load is No Travel. At wind 45 to <55 and load >30,000 lb, wind becomes No Travel. At wind 35 to <45 and load >40,000 lb, wind becomes Severe. Exactly 30,000 or 40,000 does not trigger the corresponding strict-greater override.
-
-## Exposure and recommendation
-
-Each pair of adjacent checkpoints owns its actual mileage difference, including the final partial segment. Assign the entire segment the worse of its two endpoint risks. Either endpoint being unknown makes it Unavailable, except a known No Travel endpoint takes precedence. This conservative approximation can overestimate risk between samples and can miss weather between checkpoints; it is not continuous observation. Risk miles sum to the provider route distance. Average risk is mileage-weighted using the 0–4 scale and is null for any incomplete route.
-
-Routes containing any No Travel segment are unsafe. Routes with incomplete measurements are ineligible. Only complete routes without prohibitions can be recommended. Among eligible routes, compare the tuple `(Severe miles, High miles, average risk, duration seconds)` lexicographically. No weighted tradeoff can override an earlier criterion. Stable route ID is the final deterministic tie-breaker. Viable routes display first, incomplete routes next, unsafe routes last. If every route is unsafe or incomplete there is no recommendation.
-
-## Providers, attribution and limits
-
-- [GraphHopper hosted API reference](https://docs.graphhopper.com/openapi): real routing and geocoding; `algorithm=alternative_route`, `alternative_route.max_paths=3`, and unencoded longitude/latitude geometry. Maximum paths is a request, not a guarantee. The backend removes identical geometries. If only one or two genuine alternatives exist, it returns those and a prominent warning. It never duplicates a route or invents via points to imply genuine alternatives. This provider limitation is the documented fallback for the three-route requirement.
-- [GraphHopper pricing](https://www.graphhopper.com/pricing/) and [credits](https://www.graphhopper.com/faq/what-is-one-credit/): quotas, routing profiles, geographic limits and geocoding availability depend on your account. Check your dashboard before evaluation and production; rate limits are not assumed universal. Standard two-point routing consumes credits; search/autocomplete consumes additional credits. Provider 429 responses are surfaced without automatic retry storms. GraphHopper attribution is shown in the footer.
-- [Open-Meteo documentation](https://open-meteo.com/en/docs) and [pricing/terms](https://open-meteo.com/en/pricing): free evaluation endpoint is noncommercial, up to 600 calls/minute, 5,000/hour, 10,000/day and 300,000/month at the time of verification. Multi-location/long-horizon requests may count as multiple billable calls; batching is not a quota bypass. Commercial deployments require an appropriate subscription. Weather attribution is CC BY 4.0; the app modifies units and derives risk categories.
-- [OpenStreetMap tile policy](https://operations.osmfoundation.org/policies/tiles/): visible interactive tiles only; no prefetch/offline scraping. Attribution is retained. Replace the public tile layer with a suitable commercial or self-hosted tile provider for large-scale production use.
-- Public Nominatim is intentionally unused: its policy prohibits autocomplete. Openrouteservice was evaluated but its public alternative-routing endpoint limits alternatives to 100 km; GraphHopper better fits longer trips.
-
-## Validation
+## Tests
 
 ```sh
 cd backend
@@ -163,57 +88,31 @@ uv run python manage.py test
 uv run ruff check .
 uv run ruff format --check .
 cd ../frontend
+pnpm test
 pnpm typecheck
 pnpm lint
 pnpm build
+pnpm format:check
 ```
 
-Tests use mocked routing/weather APIs, so unit tests never require a credential or paid request. They cover exact and adjacent weather thresholds, load boundaries, missing/invalid values, priority order, all-unsafe routes, deterministic ties, partial mileage, geometry interpolation, weather units, independent forecast validation, provider timeout/failure and successful serialized multi-route analysis.
+The backend suite includes all load boundaries, missing data, provider/profile failures, distinct alternatives, serialized route restrictions and ranking. The frontend suite covers request/result consistency, stale results and UTC arrival dates. Unit tests use no paid API calls and no database. Browser checks also cover all nine simulated cases, input isolation, error handling, unsafe-route exclusion, map/slider continuity and mobile widths.
 
-## Deployment
+## Live dashboard audit
 
-Two Dockerfiles, a Compose example and Nginx configuration are included. From the root, create a root `.env` with production backend variables described above. Set a random secret, `DJANGO_DEBUG=false`, the actual domain in allowed hosts, explicit HTTPS frontend origins, a routing credential and `TRUST_PROXY=true` only when using a trusted TLS reverse proxy. The root `.env` is read by Compose; `backend/.env` remains the local direct-run configuration. Do not commit either.
+The screenshot trip was reproduced with actual provider responses on 28 Oct 2026 at 06:01 UTC: Bengaluru → Jharkhand, departure 12:00 Asia/Calcutta, 40,000 lb, 50-mile sampling.
 
-```sh
-docker compose build
-docker compose up -d
-```
+| Rank | Provider route | Miles | Duration | Arrival, 29 Oct UTC | Severe / High miles | Average risk |
+|---|---|---:|---|---|---|---:|
+| A | route-1 | 1109.502 | 35h 56m | 18:25:34 | 0 / 0 | 0.000000 |
+| B | route-3 | 1169.747 | 37h 7m | 19:36:58 | 0 / 0 | 0.085489 |
+| C | route-2 | 1121.682 | 35h 58m | 18:27:56 | 0 / 150 | 0.401183 |
 
-The frontend is exposed at port 8080; place an HTTPS ingress in front of it. Nginx serves the SPA and proxies `/api/` and `/health/` to Gunicorn. The ingress must strip incoming `X-Forwarded-Proto` and set it accurately; the included Nginx forwards that header. The backend is not exposed on a host port. Production settings redirect plain HTTP to HTTPS. Local container liveness checks explicitly send the secure-proxy header because they bypass TLS inside the trusted container network. The frontend image checks `/healthz`; backend checks `/api/health/`. Both health checks are liveness only and intentionally do not spend provider credits or assert external API readiness.
+All geometries, distances, durations and ETAs were distinct. Jharkhand's selected geocoding point was 23.4559809, 85.2557301; the road endpoint was approximately 136 m away after normal provider snapping. All 73 checkpoints and all 49 slider hours per checkpoint were independently matched to captured raw forecasts: 3,650 weather records. Mileage totals, average risks and recommendation order were independently recalculated. Route A's zero average was genuine Low risk: wind 4.8–17.5 mph and rain below 0.10 in/hr. These are audit-time results, not a promise that later forecasts remain identical. Original browser-network history was unavailable; this was an exact-input reproduction.
 
-For separate hosting: deploy `backend/` to a Python container service with `uv sync --frozen --no-dev`, `uv run python manage.py migrate`, `uv run python manage.py collectstatic --noinput`, then `uv run gunicorn config.wsgi:application --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300`. Configure the platform's health path `/api/health/` and trusted HTTPS proxy. A 300-second timeout allows bounded weather batches; upstream ingress timeouts must match. Store SQLite on persistent storage if using admin users. Analysis does not persist trips and does not require migrations to query routes. Production assets are served by WhiteNoise.
+## Deployment and provider limits
 
-Deploy `frontend/dist` to a static host after `pnpm install --frozen-lockfile && pnpm build`. Set `VITE_API_BASE_URL=https://your-backend.example` before building and configure the backend's CORS origin to the exact frontend domain. The default empty value supports the included same-origin Nginx deployment. Configure SPA fallback to `index.html`; `frontend/nginx.conf` shows this. No localhost URL is compiled into production API calls. Vite's localhost target exists only in its development proxy.
+For production, set `DJANGO_DEBUG=false`, a random secret of at least 50 characters, actual allowed hosts and explicit HTTPS frontend origins. Trust forwarded protocol headers only behind a proxy that replaces client headers. Run the included backend Dockerfile or `uv run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 4 --timeout 300`. Health path: `/api/health/`. Build the frontend with its production backend origin and host `dist/` statically. No migration or collectstatic step is needed. Docker runtime deployment is not verified while the daemon is stopped.
 
-Run `uv run python manage.py check --deploy` with actual production variables before release. Verify HTTPS `/api/health/`, frontend health, a place search, one paid route analysis and the route-map/forecast interaction with your enabled provider profile. Live car-profile routing and keyless Open-Meteo forecasts were verified for Bengaluru to Ranchi: three distinct routes and 143 checkpoints with complete arrival forecasts. No cloud deployment was made. True truck routing requires a key with truck-profile access; the current key was explicitly rejected for truck by GraphHopper.
+GraphHopper profiles, distance/credit quotas and alternative availability depend on the account. Free Open-Meteo access is for noncommercial evaluation; commercial use requires an appropriate subscription. Forecast horizon/variables can be unavailable, and an analysis is capped at 600 checkpoint entries. The application is a weather assessment, not certified truck navigation.
 
-## Walkthrough
-
-1. Search and select two unambiguous locations. Set a future local departure, load in pounds, and 10/25/50-mile samples.
-2. Analyze; inspect the returned option count and any provider or weather-coverage warnings.
-3. Select a route card or map line to fit the map and view its checkpoints. Review Severe, High, No Travel and unknown mileage in the comparison table.
-4. Open a checkpoint popup for raw measurements, hazard classes and forecast validity versus truck ETA.
-5. Switch to corridor heatmap or drag the forecast slider. Compare the common forecast hour against ETA mode. Gray locations mean missing data.
-6. If no complete, unrestricted option exists, the app shows no recommended route. Do not interpret absence of a restriction in a different layer or slider hour as a safe ETA-based journey.
-
-## Known limitations
-
-Provider availability and plan-specific truck access are external dependencies. Three genuine alternatives are not guaranteed. ETA uses constant average speed and omits traffic/rest stops. Forecasts are hourly model estimates, have finite horizons and may omit variables. Corridor circles do not interpolate a continuous heat field. Geometry and endpoint maximums approximate weather mileage. Load means the assessment's supplied load, not gross vehicle weight. This is a weather assessment dashboard, not certified turn-by-turn navigation. The application code and configuration contain no comments; explanatory material is kept here.
-
-## Verified implementation checks
-
-The completed implementation passed Django system checks, the production deployment security check with production environment values, 25 backend tests, Ruff lint/format checks, frontend TypeScript checking, ESLint and a Vite production build. Browser checks covered desktop/mobile layouts, the real missing-key error, and a successful three-route flow against an isolated backend with mocked external providers: map routes, selection, slider updates and arrival-mode restoration, with no browser errors or horizontal overflow. A live Open-Meteo response verified measurement units. Compose configuration syntax was validated; container images were not built because the Docker daemon was not running. Paid live routing and cloud deployment remain operator steps.
-
-## Modular dashboard and current routing access
-
-The dashboard follows the supplied map-first layout. `src/App.tsx` composes separate planner, map, route options, forecast timeline/chart, checkpoint, comparison, notices, rules and footer components. Trip request/validation state lives in `hooks/useTripAnalysis.ts`; forecast playback and time selection live in `hooks/useForecastExplorer.ts`. Leaflet viewport controls, checkpoint markers and map layers are separate modules. Tailwind v4 is integrated through `@tailwindcss/vite`; shared design tokens and component classes live in `src/styles.css`. The navbar is intentionally not rendered at the user's request; `components/layout/Header.tsx` is retained.
-
-Responsive layout was browser-checked at widths 320, 360, 390, 600, 640, 768, 850, 900, 1024, 1136, 1250, 1280, 1440 and 1920 pixels. Trip fields use explicit responsive grid areas so the weather sampling selector cannot enter the narrow swap-button column. No field overlaps or horizontal page overflow were found. The forecast plot observes its container width so axes stay aligned on phones. The UI supports origin/destination swapping, keyboard location selection, route selection, forecast playback, hazard-specific corridor layers and expandable checkpoint measurements.
-
-`OPEN_METEO_API_KEY=` is valid and intentional: the public forecast endpoint needs no key. Its optional key is for the commercial customer endpoint only. Wind is explicitly requested in mph, and rain/snow unit conversion is tested.
-
-GraphHopper's documentation lists every profile supported by the service, including truck. Availability is account-specific. The current key returned HTTP 400 with: `For your account the profile parameter can only be one of [car, bike, foot] but was truck`. GraphHopper's pricing page says the free tier has limited vehicle profiles; its support forum confirms that paid packages starting with Basic include all profiles. If your account is already paid, verify the API key belongs to that account or contact provider support. An application setting cannot grant missing provider permissions.
-
-Use `GRAPHHOPPER_PROFILE=truck` only with an authorized key. For evaluation with the existing key, `GRAPHHOPPER_PROFILE=car` was tested successfully; the response exposes `routing_profile` and `truck_restrictions_enforced=false`, and the UI displays a persistent weather-only assessment warning. All wind/rain/snow and load rules continue to apply, but car routes must not be presented as truck-compatible roads. If the profile is changed in `.env`, restart Django to reload it. The user's current explicit profile selection is preserved; the application does not silently downgrade rejected truck requests.
-
-Provider references: [standard routing profiles](https://docs.graphhopper.com/openapi/map-data-and-routing-profiles/openstreetmap/standard-routing-profiles), [pricing restrictions](https://www.graphhopper.com/pricing/), [provider support clarification](https://discuss.graphhopper.com/t/message-for-your-account-the-profile-parameter-can-only-be-one-of-car-bike-foot-but-was-small-truck/9468).
+Attribution and terms: [GraphHopper](https://docs.graphhopper.com/openapi), [Open-Meteo / CC BY 4.0](https://open-meteo.com/en/docs), [OpenStreetMap tiles](https://operations.osmfoundation.org/policies/tiles/).

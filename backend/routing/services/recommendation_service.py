@@ -37,7 +37,7 @@ def summarize(route):
     elif load_restriction_count:
         restriction_summary = f"Load-specific restrictions at {load_restriction_count} checkpoint(s); no No Travel checkpoints."
     else:
-        restriction_summary = "No No Travel checkpoints under the weather/load rules. Truck road suitability is assessed separately."
+        restriction_summary = "No checkpoints are classified No Travel under the weather/load rules. Truck road suitability is assessed separately."
     route.update(
         risk_miles=miles,
         average_risk=average,

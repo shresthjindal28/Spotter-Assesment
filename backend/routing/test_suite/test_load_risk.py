@@ -5,7 +5,7 @@ from django.conf import settings
 from django.core.cache import cache
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APISimpleTestCase
 
 from routing.services.providers import ProviderError
 from routing.services.risk_service import assess_load, classify
@@ -94,7 +94,7 @@ class LoadRuleTests(SimpleTestCase):
 
 
 @override_settings(GRAPHHOPPER_API_KEY="", GRAPHHOPPER_PROFILE="truck")
-class LoadRiskEndpointTests(APITestCase):
+class LoadRiskEndpointTests(APISimpleTestCase):
     def setUp(self):
         cache.clear()
 
@@ -159,7 +159,7 @@ class LoadRiskEndpointTests(APITestCase):
 
 
 @override_settings(GRAPHHOPPER_API_KEY="test-only", GRAPHHOPPER_PROFILE="car")
-class LoadRouteIntegrationTests(APITestCase):
+class LoadRouteIntegrationTests(APISimpleTestCase):
     def setUp(self):
         cache.clear()
         self.departure = timezone.now().replace(minute=0, second=0, microsecond=0) + timedelta(
@@ -213,6 +213,21 @@ class LoadRouteIntegrationTests(APITestCase):
         self.assertEqual(len(response.data["routes"]), 3)
         self.assertEqual(response.data["routing_profile"], "car")
         self.assertFalse(response.data["truck_restrictions_enforced"])
+        self.assertEqual(response.data["trip"]["destination"], self.payload()["destination"])
+        self.assertEqual(response.data["trip"]["origin"], self.payload()["origin"])
+        self.assertEqual(response.data["trip"]["load_weight_lb"], 30001)
+        self.assertEqual(response.data["trip"]["interval_miles"], 25)
+        self.assertEqual(
+            timezone.datetime.fromisoformat(response.data["trip"]["departure_time"]), self.departure
+        )
+        self.assertLess(
+            abs(
+                (
+                    timezone.now() - timezone.datetime.fromisoformat(response.data["analyzed_at"])
+                ).total_seconds()
+            ),
+            10,
+        )
         self.assertTrue(
             any(
                 "Truck-specific road restrictions are not enforced" in w

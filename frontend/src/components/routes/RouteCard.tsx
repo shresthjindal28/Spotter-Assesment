@@ -1,5 +1,6 @@
 import { ChevronRight, ShieldAlert, ShieldCheck, Trophy } from "lucide-react";
 import type { Route } from "../../types";
+import { arrivalDate } from "../../lib/assessment";
 import { duration, number, routeColors, time } from "../../lib/format";
 export default function RouteCard({
   route,
@@ -64,7 +65,9 @@ export default function RouteCard({
               timeZone: "UTC",
             })}
           </strong>
-          <span className="metric-label">Arrival · UTC</span>
+          <span className="metric-label">
+            {arrivalDate(route.arrival_time)} · UTC
+          </span>
         </div>
       </div>
       <div className="mt-4 grid grid-cols-[1fr_1fr_1fr_1.15fr] divide-x divide-[#e4eae4] pl-[31px]">
@@ -92,7 +95,7 @@ export default function RouteCard({
             {restricted
               ? "No Travel"
               : route.status === "viable"
-                ? "Eligible"
+                ? "Weather eligible"
                 : "Incomplete"}
           </span>
         </div>

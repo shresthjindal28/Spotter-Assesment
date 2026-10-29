@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 from django.conf import settings
+from django.utils import timezone
 
 from .checkpoint_service import checkpoints
 from .providers import ProviderError
@@ -56,6 +57,14 @@ def analyze(data):
             "No route is currently eligible for recommendation under the configured rules."
         )
     return {
+        "analyzed_at": timezone.now().isoformat(),
+        "trip": {
+            "origin": dict(data["origin"]),
+            "destination": dict(data["destination"]),
+            "departure_time": data["departure_time"].isoformat(),
+            "load_weight_lb": data["load_weight_lb"],
+            "interval_miles": data["interval_miles"],
+        },
         "routes": ordered,
         "recommended_route_id": recommended,
         "warnings": warnings,

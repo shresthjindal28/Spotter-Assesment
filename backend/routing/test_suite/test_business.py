@@ -4,7 +4,7 @@ from unittest.mock import patch
 import httpx
 from django.test import SimpleTestCase, override_settings
 from django.utils import timezone
-from rest_framework.test import APITestCase
+from rest_framework.test import APISimpleTestCase
 
 from routing.services.checkpoint_service import checkpoints
 from routing.services.providers import ProviderError, fetch
@@ -127,7 +127,7 @@ class CheckpointTests(SimpleTestCase):
 
 
 @override_settings(GRAPHHOPPER_API_KEY="test-key")
-class IntegrationTests(APITestCase):
+class IntegrationTests(APISimpleTestCase):
     def payload(self):
         return {
             "origin": {"label": "A", "lat": 40, "lon": -75},

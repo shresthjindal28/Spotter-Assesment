@@ -40,6 +40,8 @@ export type Route = {
   recommended: boolean;
 };
 export type Analysis = {
+  analyzed_at?: string;
+  trip?: AnalysisRequest;
   routing_profile: string;
   truck_restrictions_enforced: boolean;
   routes: Route[];

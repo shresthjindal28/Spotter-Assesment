@@ -35,7 +35,7 @@ export default function RouteComparison({
                   "No Travel mi",
                   "Unknown mi",
                   "Avg. risk / 4",
-                  "Eligibility",
+                  "Weather eligibility",
                 ].map((label) => (
                   <th key={label}>{label}</th>
                 ))}
