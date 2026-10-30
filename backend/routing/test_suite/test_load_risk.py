@@ -194,7 +194,7 @@ class LoadRouteIntegrationTests(APISimpleTestCase):
             {
                 "hourly": {
                     "time": times,
-                    "wind_speed_10m": [45] * 60,
+                    "wind_speed_10m": [getattr(self, "forecast_wind", 45)] * 60,
                     "rain": [0] * 60,
                     "showers": [0] * 60,
                     "snowfall": [0] * 60,
@@ -295,3 +295,37 @@ class LoadRouteIntegrationTests(APISimpleTestCase):
         self.assertEqual(routing.call_args.args[1]["profile"], "truck")
         routing.assert_called_once()
         weather.assert_not_called()
+
+    @patch("routing.services.weather_service.fetch")
+    @patch("routing.services.routing_service.fetch")
+    def test_sixty_thousand_lb_uses_forecast_wind_for_route_classification(self, routing, weather):
+        routing.return_value = self.provider_routes()
+        weather.side_effect = self.weather
+        for wind, risk, state in [
+            (11.7, "Low", "viable"),
+            (30, "Moderate", "viable"),
+            (35, "Severe", "viable"),
+            (44, "Severe", "viable"),
+            (45, "No Travel", "unsafe"),
+            (54, "No Travel", "unsafe"),
+            (55, "No Travel", "unsafe"),
+        ]:
+            with self.subTest(wind=wind):
+                self.forecast_wind = wind
+                response = self.client.post(
+                    "/api/routes/analyze/", self.payload(60000), format="json"
+                )
+                self.assertEqual(response.status_code, 200, response.data)
+                self.assertEqual(response.data["trip"]["load_weight_lb"], 60000)
+                for route in response.data["routes"]:
+                    self.assertEqual(route["status"], state)
+                    self.assertIn("Assessed load: 60,000 lb", route["restriction_summary"])
+                    self.assertIn(f"{wind:.1f}–{wind:.1f} mph", route["restriction_summary"])
+                    for point in route["checkpoints"]:
+                        self.assertEqual(point["load_assessment"]["load_weight_lb"], 60000)
+                        self.assertEqual(point["risk"], risk)
+                if state == "unsafe":
+                    self.assertIsNone(response.data["recommended_route_id"])
+                    self.assertTrue(
+                        all(not route["recommended"] for route in response.data["routes"])
+                    )

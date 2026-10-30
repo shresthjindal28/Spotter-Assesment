@@ -1,4 +1,4 @@
-from .risk_service import LEVELS
+from .risk_service import LEVELS, valid
 
 
 def summarize(route):
@@ -38,6 +38,23 @@ def summarize(route):
         restriction_summary = f"Load-specific restrictions at {load_restriction_count} checkpoint(s); no No Travel checkpoints."
     else:
         restriction_summary = "No checkpoints are classified No Travel under the weather/load rules. Truck road suitability is assessed separately."
+    wind_values = [p.get("wind_mph") for p in route["checkpoints"] if valid(p.get("wind_mph"))]
+    assessed_loads = {
+        p.get("load_assessment", {}).get("load_weight_lb")
+        for p in route["checkpoints"]
+        if valid(p.get("load_assessment", {}).get("load_weight_lb"))
+    }
+    evidence = []
+    if len(assessed_loads) == 1:
+        load_label = format(next(iter(assessed_loads)), ",").removesuffix(".0")
+        evidence.append(f"Assessed load: {load_label} lb.")
+    if wind_values:
+        evidence.append(
+            f"Arrival-forecast wind: {min(wind_values):.1f}–{max(wind_values):.1f} mph ({len(wind_values)}/{len(route['checkpoints'])} checkpoints)."
+        )
+    else:
+        evidence.append("Arrival-forecast wind is unavailable; no zero-wind assumption is made.")
+    restriction_summary = " ".join([*evidence, restriction_summary])
     route.update(
         risk_miles=miles,
         average_risk=average,

@@ -5,7 +5,6 @@ import RouteOptions from "./components/routes/RouteOptions";
 import RouteComparison from "./components/routes/RouteComparison";
 import ForecastTimeline from "./components/weather/ForecastTimeline";
 import CheckpointList from "./components/checkpoints/CheckpointList";
-import LoadRiskTest from "./components/assessment/LoadRiskTest";
 import RiskRules from "./components/assessment/RiskRules";
 import AnalysisNotices from "./components/dashboard/AnalysisNotices";
 import { useTripAnalysis } from "./hooks/useTripAnalysis";
@@ -81,7 +80,6 @@ export default function App() {
           selected={trip.selected}
           onSelect={trip.selectRoute}
         />
-        <LoadRiskTest />
         <RiskRules />
         <Footer />
       </main>
